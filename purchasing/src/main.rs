@@ -1,44 +1,32 @@
 use crate::purchasing_record::Purchase;
+use actix_web::{get, middleware::Logger, post, web::Json, App, HttpServer, Responder};
 use apache_avro::{from_value, AvroSchema, Reader, Writer};
+use env_logger::Env;
 mod purchasing_record;
 
-fn main() {
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
     println!("Hello, world!");
+    env_logger::init_from_env(Env::default().default_filter_or("info"));
 
-    let schema = Purchase::get_schema();
+    HttpServer::new(move || {
+        App::new()
+            .service(hello_world)
+            .service(purchase)
+            .wrap(Logger::default())
+    })
+    .bind("0.0.0.0:9000")?
+    .run()
+    .await
+}
 
-    let buffer = Vec::new();
+#[get("/hello")]
+pub async fn hello_world() -> impl Responder {
+    "Hi"
+}
 
-    let mut writer = Writer::new(&schema, buffer);
-
-    let record = Purchase {
-        cost: 1.2,
-        bike_id: 1,
-    };
-
-    writer.append_ser(record).unwrap();
-
-    let second_record = Purchase {
-        cost: 1.2,
-        bike_id: 2,
-    };
-
-    writer.append_ser(second_record).unwrap();
-
-    let third_record = Purchase {
-        cost: 1.2,
-        bike_id: 4,
-    };
-
-    writer.append_ser(third_record).unwrap();
-
-    let encoded = writer.into_inner().unwrap();
-
-    println!("schema: {:?}", schema);
-    println!("encoded is {:?} long", encoded.len());
-
-    let reader = Reader::new(&encoded[..]).unwrap();
-    for record in reader {
-        println!("purchase: {:?}", from_value::<Purchase>(&record.unwrap()))
-    }
+#[post("/purchase")]
+pub async fn purchase(record: Json<Purchase>) -> impl Responder {
+    println!("We received {:?}", record);
+    "got it bossman"
 }
