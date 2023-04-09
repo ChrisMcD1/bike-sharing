@@ -6,3 +6,8 @@ pub struct Purchase {
     pub bike_id: u32,
     pub cost: f64,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PurchaseRequest {
+    pub cost: f64,
+}
