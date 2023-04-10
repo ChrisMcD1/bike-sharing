@@ -56,7 +56,7 @@ impl PurchasesProducer {
     pub fn send_record(&mut self, record: Purchase) {
         let avro_value = to_value(record).unwrap();
         let avro_binary = to_avro_datum(&Purchase::get_schema(), avro_value).unwrap();
-        let kafka_record = kafka::producer::Record::from_value("TEST", avro_binary);
+        let kafka_record = kafka::producer::Record::from_value("bike-purchases", avro_binary);
 
         self.kafka_producer.send(&kafka_record).unwrap();
     }
