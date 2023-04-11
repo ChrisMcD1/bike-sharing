@@ -48,7 +48,7 @@ struct PurchasesProducer {
 
 impl PurchasesProducer {
     pub fn new() -> Self {
-        let kafka_producer = Producer::from_hosts(vec!["localhost:9092".to_owned()])
+        let kafka_producer = Producer::from_hosts(vec!["host.docker.internal:9092".to_owned()])
             .with_ack_timeout(std::time::Duration::from_secs(1))
             .with_required_acks(kafka::producer::RequiredAcks::One)
             .create()
