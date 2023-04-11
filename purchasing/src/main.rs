@@ -1,10 +1,12 @@
-use crate::purchasing_record::Purchase;
+mod produces;
+mod purchase_request;
+
+use crate::produces::Purchase;
 use actix_web::{get, middleware::Logger, post, web::Json, App, HttpServer, Responder};
-use apache_avro::{from_value, to_avro_datum, to_value, AvroSchema, Reader, Schema, Writer};
+use apache_avro::{to_avro_datum, to_value, AvroSchema};
 use env_logger::Env;
 use kafka::producer::Producer;
-use purchasing_record::PurchaseRequest;
-mod purchasing_record;
+use purchase_request::PurchaseRequest;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
