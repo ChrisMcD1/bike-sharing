@@ -19,7 +19,7 @@ async fn main() -> std::io::Result<()> {
             .service(purchase)
             .wrap(Logger::default())
     })
-    .bind("0.0.0.0:9000")?
+    .bind(("0.0.0.0", 9000))?
     .run()
     .await
 }

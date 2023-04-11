@@ -1,0 +1,10 @@
+version: "3"
+services:
+  purchasing:
+    build: purchasing
+    ports:
+      - "9000:9000"
+  user-sign-up:
+    build: user-sign-up
+    ports:
+      - "9001:9001"
