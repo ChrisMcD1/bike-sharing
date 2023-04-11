@@ -1,0 +1,20 @@
+{
+    "partitions": [
+        {
+            "topic": "TEST",
+            "offset": 0,
+            "partition": 0
+        },
+        {
+            "topic": "bike-purchases",
+            "offset": 0,
+            "partition": 0
+        },
+        {
+            "topic": "bike-purchases-aggregate",
+            "offset": 0,
+            "partition": 0
+        }
+    ],
+    "version": 1
+}
