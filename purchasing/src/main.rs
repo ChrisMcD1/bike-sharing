@@ -7,10 +7,12 @@ use apache_avro::{to_avro_datum, to_value, AvroSchema};
 use env_logger::Env;
 use kafka::producer::Producer;
 use purchase_request::PurchaseRequest;
+use serde::{Deserialize, Serialize};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     println!("Hello, world!");
+    let config: Configuration = confy::load("purchasing", None).unwrap();
     env_logger::init_from_env(Env::default().default_filter_or("info"));
 
     HttpServer::new(move || {
@@ -19,9 +21,16 @@ async fn main() -> std::io::Result<()> {
             .service(purchase)
             .wrap(Logger::default())
     })
-    .bind(("0.0.0.0", 9000))?
+    .bind((config.purchasing_ip, config.purchasing_port))?
     .run()
     .await
+}
+
+#[derive(Default, Debug, Serialize, Deserialize)]
+struct Configuration {
+    purchasing_ip: String,
+    purchasing_port: u16,
+    kafka_host: String,
 }
 
 #[get("/hello")]
@@ -37,7 +46,8 @@ pub async fn purchase(record: Json<PurchaseRequest>) -> impl Responder {
         bike_id,
     };
 
-    let mut producer = PurchasesProducer::new();
+    let config: Configuration = confy::load("purchasing", None).unwrap();
+    let mut producer = PurchasesProducer::new(&config);
     producer.send_record(purchase);
     "got it bossman"
 }
@@ -47,8 +57,8 @@ struct PurchasesProducer {
 }
 
 impl PurchasesProducer {
-    pub fn new() -> Self {
-        let kafka_producer = Producer::from_hosts(vec!["host.docker.internal:9092".to_owned()])
+    pub fn new(config: &Configuration) -> Self {
+        let kafka_producer = Producer::from_hosts(vec![config.kafka_host.to_owned()])
             .with_ack_timeout(std::time::Duration::from_secs(1))
             .with_required_acks(kafka::producer::RequiredAcks::One)
             .create()
