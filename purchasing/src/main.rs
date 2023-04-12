@@ -2,7 +2,13 @@ mod produces;
 mod purchase_request;
 
 use crate::produces::Purchase;
-use actix_web::{get, middleware::Logger, post, web::Json, App, HttpServer, Responder};
+use actix_web::{
+    get,
+    middleware::Logger,
+    post,
+    web::{self, Json},
+    App, HttpServer, Responder,
+};
 use apache_avro::{to_avro_datum, to_value, AvroSchema};
 use env_logger::Env;
 use kafka::producer::Producer;
@@ -14,19 +20,21 @@ async fn main() -> std::io::Result<()> {
     println!("Hello, world!");
     let config: Configuration = confy::load("purchasing", None).unwrap();
     env_logger::init_from_env(Env::default().default_filter_or("info"));
+    let config_clone = config.clone();
 
     HttpServer::new(move || {
         App::new()
             .service(hello_world)
             .service(purchase)
             .wrap(Logger::default())
+            .app_data(web::Data::new(config_clone.to_owned()))
     })
     .bind((config.purchasing_ip, config.purchasing_port))?
     .run()
     .await
 }
 
-#[derive(Default, Debug, Serialize, Deserialize)]
+#[derive(Default, Debug, Serialize, Deserialize, Clone)]
 struct Configuration {
     purchasing_ip: String,
     purchasing_port: u16,
@@ -34,19 +42,21 @@ struct Configuration {
 }
 
 #[get("/hello")]
-pub async fn hello_world() -> impl Responder {
+async fn hello_world() -> impl Responder {
     "Hi"
 }
 
 #[post("/purchase")]
-pub async fn purchase(record: Json<PurchaseRequest>) -> impl Responder {
+async fn purchase(
+    record: Json<PurchaseRequest>,
+    config: web::Data<Configuration>,
+) -> impl Responder {
     let bike_id = 1;
     let purchase = Purchase {
         cost: record.cost,
         bike_id,
     };
 
-    let config: Configuration = confy::load("purchasing", None).unwrap();
     let mut producer = PurchasesProducer::new(&config);
     producer.send_record(purchase);
     "got it bossman"
