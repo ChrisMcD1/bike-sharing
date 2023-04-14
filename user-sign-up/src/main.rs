@@ -1,7 +1,6 @@
 mod produces;
 use crate::produces::User;
 use actix_web::{middleware::Logger, post, web::Json, App, HttpServer, Responder};
-use apache_avro::{to_avro_datum, to_value, AvroSchema};
 use env_logger::Env;
 use kafka::producer::Producer;
 use produces::USER_TOPIC;
@@ -15,8 +14,14 @@ async fn main() -> std::io::Result<()> {
     println!("Hello, world!");
     env_logger::init_from_env(Env::default().default_filter_or("info"));
 
+    let bind_ip = std::env::var("BIND_IP").expect("Must define $BIND_IP");
+    let bind_port: u16 = std::env::var("BIND_PORT")
+        .expect("Must define $BIND_PORT")
+        .parse()
+        .expect("Got binding port, but failed to parse to u16");
+
     HttpServer::new(move || App::new().service(create).wrap(Logger::default()))
-        .bind(("0.0.0.0", 9001))?
+        .bind((bind_ip, bind_port))?
         .run()
         .await
 }
@@ -31,7 +36,7 @@ pub struct UserCreationRequest {
 
 #[post("/create")]
 pub async fn create(request: Json<UserCreationRequest>) -> impl Responder {
-    let mut producer = PurchasesProducer::new();
+    let mut producer = UsersProducer::new();
 
     let user = User {
         id: 1,
@@ -44,21 +49,27 @@ pub async fn create(request: Json<UserCreationRequest>) -> impl Responder {
     "got it bossman"
 }
 
-struct PurchasesProducer {
+struct UsersProducer {
     kafka_producer: Producer,
     subject_name_strategy: SubjectNameStrategy,
     encoder: AvroEncoder,
 }
 
-impl PurchasesProducer {
+impl UsersProducer {
     pub fn new() -> Self {
-        let kafka_producer = Producer::from_hosts(vec!["host.docker.internal:9092".to_owned()])
+        let kafka_broker_address =
+            std::env::var("KAFKA_BROKER_ADDRESS").expect("Must define $KAFKA_BROKER_ADDRESS");
+        let kafka_producer = Producer::from_hosts(vec![kafka_broker_address.to_owned()])
             .with_ack_timeout(std::time::Duration::from_secs(1))
             .with_required_acks(kafka::producer::RequiredAcks::One)
             .create()
             .expect("Unable to make kafka producer");
-        let sr_settings = SrSettings::new("FIX_ME".to_owned());
+
+        let schema_registry_address =
+            std::env::var("SCHEMA_REGISTRY_ADDRESS").expect("Must define $SCHEMA_REGISTRY_ADDRESS");
+        let sr_settings = SrSettings::new(schema_registry_address.to_owned());
         let encoder = AvroEncoder::new(sr_settings);
+
         let subject_name_strategy =
             SubjectNameStrategy::TopicNameStrategy(USER_TOPIC.to_owned(), false);
 
@@ -69,10 +80,13 @@ impl PurchasesProducer {
         }
     }
     pub fn send_record(&mut self, record: User) {
-        let avro_value = to_value(record).unwrap();
-        let avro_binary = to_avro_datum(&User::get_schema(), avro_value).unwrap();
+        let avro_binary = self
+            .encoder
+            .encode_struct(record, &self.subject_name_strategy)
+            .expect("Unable to encode user");
         let kafka_record = kafka::producer::Record::from_value(USER_TOPIC, avro_binary);
-
-        self.kafka_producer.send(&kafka_record).unwrap();
+        self.kafka_producer
+            .send(&kafka_record)
+            .expect("Unable to send to user stream");
     }
 }
