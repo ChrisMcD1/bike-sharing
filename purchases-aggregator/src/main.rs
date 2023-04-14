@@ -17,10 +17,12 @@ const TOPIC: &str = "bike-purchases-aggregator";
 fn main() {
     println!("Hello, world!");
 
-    let config: Configuration =
-        confy::load("purchasing-aggregator", None).expect("Failed to load confy configuration");
+    let schema_registry_address = env!("SCHEMA_REGISTRY_ADDRESS");
+    let kafka_broker_address = env!("KAFKA_BROKER_ADDRESS");
 
-    let mut kafka_consumer = Consumer::from_hosts(vec![config.kafka_address.to_owned()])
+    println!("We got the environment variables");
+
+    let mut kafka_consumer = Consumer::from_hosts(vec![kafka_broker_address.to_owned()])
         .with_topic("bike-purchases".to_owned())
         .with_fallback_offset(kafka::consumer::FetchOffset::Earliest)
         .with_fetch_max_wait_time(Duration::from_secs(1))
@@ -30,13 +32,13 @@ fn main() {
         .create()
         .expect("Unable to make kafka consumer");
 
-    let mut kafka_producer = Producer::from_hosts(vec![config.kafka_address.to_owned()])
+    let mut kafka_producer = Producer::from_hosts(vec![kafka_broker_address.to_owned()])
         .with_ack_timeout(std::time::Duration::from_secs(1))
         .with_required_acks(kafka::producer::RequiredAcks::One)
         .create()
         .expect("Unable to make kafka producer");
 
-    let sr_settings = SrSettings::new(config.schema_registry_address.to_owned());
+    let sr_settings = SrSettings::new(schema_registry_address.to_owned());
     let decoder = AvroDecoder::new(sr_settings.clone());
 
     let encoder = AvroEncoder::new(sr_settings);

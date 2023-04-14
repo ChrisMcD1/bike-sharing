@@ -3,16 +3,28 @@ version: '2'
 services:
   purchasing:
     build: purchasing
+    depends_on: 
+      - broker
+      - schema-registry
     ports:
       - "9000:9000"
 
   user-sign-up:
     build: user-sign-up
+    depends_on: 
+      - broker
+      - schema-registry
     ports:
       - "9001:9001"
 
   purchases-aggregater:
     build: purchases-aggregator
+    depends_on: 
+      - broker
+      - schema-registry
+    environment:
+      SCHEMA_REGISTRY_ADDRESS: "localhost:8082"
+      KAFKA_BROKER_ADDRESS: "localhost:9092"
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.3.3
