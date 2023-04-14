@@ -94,10 +94,10 @@ impl PurchasesProducer {
         let avro_binary = self
             .encoder
             .encode_struct(record, &self.subject_name_strategy)
-            .expect("Unable to encode aggregate struct");
+            .expect("Unable to encode purchase");
         let kafka_record = kafka::producer::Record::from_value(TOPIC, avro_binary);
         self.kafka_producer
             .send(&kafka_record)
-            .expect("Unable to send to aggregate producer");
+            .expect("Unable to send to purchases event stream");
     }
 }
