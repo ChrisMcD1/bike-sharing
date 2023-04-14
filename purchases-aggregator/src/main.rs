@@ -1,11 +1,10 @@
-use std::{io::Cursor, time::Duration, vec};
-
-use apache_avro::{from_avro_datum, from_value, to_avro_datum, to_value, AvroSchema, Schema};
+use apache_avro::{from_value, AvroSchema};
 use kafka::{consumer::Consumer, producer::Producer};
 use schema_registry_converter::blocking::avro::{AvroDecoder, AvroEncoder};
 use schema_registry_converter::blocking::schema_registry::SrSettings;
 use schema_registry_converter::schema_registry_common::SubjectNameStrategy;
 use serde::{Deserialize, Serialize};
+use std::{time::Duration, vec};
 
 #[derive(Default, Debug, Serialize, Deserialize, Clone)]
 struct Configuration {
