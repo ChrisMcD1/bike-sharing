@@ -17,10 +17,8 @@ const TOPIC: &str = "bike-purchases-aggregator";
 fn main() {
     println!("Hello, world!");
 
-    let schema_registry_address = env!("SCHEMA_REGISTRY_ADDRESS");
-    let kafka_broker_address = env!("KAFKA_BROKER_ADDRESS");
-
-    println!("We got the environment variables");
+    let schema_registry_address = std::env::var("SCHEMA_REGISTRY_ADDRESS").unwrap();
+    let kafka_broker_address = std::env::var("KAFKA_BROKER_ADDRESS").unwrap();
 
     let mut kafka_consumer = Consumer::from_hosts(vec![kafka_broker_address.to_owned()])
         .with_topic("bike-purchases".to_owned())
@@ -30,7 +28,7 @@ fn main() {
         .with_fetch_max_bytes_per_partition(100_000)
         .with_retry_max_bytes_limit(1_000_000)
         .create()
-        .expect("Unable to make kafka consumer");
+        .expect("Failed to make kafka consumer!");
 
     let mut kafka_producer = Producer::from_hosts(vec![kafka_broker_address.to_owned()])
         .with_ack_timeout(std::time::Duration::from_secs(1))
