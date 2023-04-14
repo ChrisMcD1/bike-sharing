@@ -9,19 +9,24 @@ use actix_web::{
     web::{self, Json},
     App, HttpServer, Responder,
 };
-use apache_avro::{to_avro_datum, to_value, AvroSchema};
 use env_logger::Env;
 use kafka::producer::Producer;
 use purchase_request::PurchaseRequest;
+use schema_registry_converter::blocking::avro::AvroEncoder;
+use schema_registry_converter::blocking::schema_registry::SrSettings;
+use schema_registry_converter::schema_registry_common::SubjectNameStrategy;
 use serde::{Deserialize, Serialize};
+
+const TOPIC: &str = "bike-purchases";
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     println!("Hello, world!");
-    let config: Configuration = confy::load("purchasing", None).unwrap();
+    let config: Configuration =
+        confy::load("purchasing", None).expect("Unable to get confy configuration");
     env_logger::init_from_env(Env::default().default_filter_or("info"));
-    let config_clone = config.clone();
 
+    let config_clone = config.clone();
     HttpServer::new(move || {
         App::new()
             .service(hello_world)
@@ -39,6 +44,7 @@ struct Configuration {
     purchasing_ip: String,
     purchasing_port: u16,
     kafka_host: String,
+    schema_registry_address: String,
 }
 
 #[get("/hello")]
@@ -64,6 +70,8 @@ async fn purchase(
 
 struct PurchasesProducer {
     kafka_producer: Producer,
+    subject_name_strategy: SubjectNameStrategy,
+    encoder: AvroEncoder,
 }
 
 impl PurchasesProducer {
@@ -73,13 +81,25 @@ impl PurchasesProducer {
             .with_required_acks(kafka::producer::RequiredAcks::One)
             .create()
             .expect("Unable to make kafka producer");
-        Self { kafka_producer }
+
+        let sr_settings = SrSettings::new(config.schema_registry_address.to_owned());
+        let encoder = AvroEncoder::new(sr_settings);
+        let subject_name_strategy = SubjectNameStrategy::TopicNameStrategy(TOPIC.to_owned(), false);
+
+        Self {
+            kafka_producer,
+            subject_name_strategy,
+            encoder,
+        }
     }
     pub fn send_record(&mut self, record: Purchase) {
-        let avro_value = to_value(record).unwrap();
-        let avro_binary = to_avro_datum(&Purchase::get_schema(), avro_value).unwrap();
-        let kafka_record = kafka::producer::Record::from_value("bike-purchases", avro_binary);
-
-        self.kafka_producer.send(&kafka_record).unwrap();
+        let avro_binary = self
+            .encoder
+            .encode_struct(record, &self.subject_name_strategy)
+            .expect("Unable to encode aggregate struct");
+        let kafka_record = kafka::producer::Record::from_value(TOPIC, avro_binary);
+        self.kafka_producer
+            .send(&kafka_record)
+            .expect("Unable to send to aggregate producer");
     }
 }
