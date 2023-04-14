@@ -18,11 +18,11 @@ async fn main() -> std::io::Result<()> {
     println!("Hello, world!");
     env_logger::init_from_env(Env::default().default_filter_or("info"));
 
-    let purchasing_ip = std::env::var("PURCHASING_IP").expect("Must define $PURCHASING_IP");
-    let purchasing_port: u16 = std::env::var("PURCHASING_PORT")
-        .expect("Must define $PURCHASING_PORT")
+    let bind_ip = std::env::var("BIND_IP").expect("Must define $BIND_IP");
+    let bind_port: u16 = std::env::var("BIND_PORT")
+        .expect("Must define $BIND_PORT")
         .parse()
-        .expect("Got purchasing IP, but failed to parse to u16");
+        .expect("Got binding port, but failed to parse to u16");
 
     HttpServer::new(move || {
         App::new()
@@ -30,7 +30,7 @@ async fn main() -> std::io::Result<()> {
             .service(purchase)
             .wrap(Logger::default())
     })
-    .bind((purchasing_ip, purchasing_port))?
+    .bind((bind_ip, bind_port))?
     .run()
     .await
 }
