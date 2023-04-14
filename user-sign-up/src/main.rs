@@ -1,11 +1,13 @@
 mod produces;
-
 use crate::produces::User;
-use actix_web::{get, middleware::Logger, post, web::Json, App, HttpServer, Responder};
+use actix_web::{middleware::Logger, post, web::Json, App, HttpServer, Responder};
 use apache_avro::{to_avro_datum, to_value, AvroSchema};
 use env_logger::Env;
 use kafka::producer::Producer;
 use produces::USER_TOPIC;
+use schema_registry_converter::blocking::avro::AvroEncoder;
+use schema_registry_converter::blocking::schema_registry::SrSettings;
+use schema_registry_converter::schema_registry_common::SubjectNameStrategy;
 use serde::Deserialize;
 
 #[actix_web::main]
@@ -44,6 +46,8 @@ pub async fn create(request: Json<UserCreationRequest>) -> impl Responder {
 
 struct PurchasesProducer {
     kafka_producer: Producer,
+    subject_name_strategy: SubjectNameStrategy,
+    encoder: AvroEncoder,
 }
 
 impl PurchasesProducer {
@@ -53,7 +57,16 @@ impl PurchasesProducer {
             .with_required_acks(kafka::producer::RequiredAcks::One)
             .create()
             .expect("Unable to make kafka producer");
-        Self { kafka_producer }
+        let sr_settings = SrSettings::new("FIX_ME".to_owned());
+        let encoder = AvroEncoder::new(sr_settings);
+        let subject_name_strategy =
+            SubjectNameStrategy::TopicNameStrategy(USER_TOPIC.to_owned(), false);
+
+        Self {
+            kafka_producer,
+            subject_name_strategy,
+            encoder,
+        }
     }
     pub fn send_record(&mut self, record: User) {
         let avro_value = to_value(record).unwrap();
