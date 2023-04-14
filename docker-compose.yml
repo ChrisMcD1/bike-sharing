@@ -8,6 +8,11 @@ services:
       - schema-registry
     ports:
       - "9000:9000"
+    environment:
+      SCHEMA_REGISTRY_ADDRESS: "localhost:8082"
+      KAFKA_BROKER_ADDRESS: "localhost:9092"
+      BIND_IP: "0.0.0.0"
+      BIND_PORT: 9000
 
   user-sign-up:
     build: user-sign-up
@@ -16,6 +21,11 @@ services:
       - schema-registry
     ports:
       - "9001:9001"
+    environment:
+      SCHEMA_REGISTRY_ADDRESS: "localhost:8082"
+      KAFKA_BROKER_ADDRESS: "localhost:9092"
+      BIND_IP: "0.0.0.0"
+      BIND_PORT: 9001
 
   purchases-aggregater:
     build: purchases-aggregator
