@@ -2,13 +2,7 @@ mod produces;
 mod purchase_request;
 
 use crate::produces::Purchase;
-use actix_web::{
-    get,
-    middleware::Logger,
-    post,
-    web::{self, Json},
-    App, HttpServer, Responder,
-};
+use actix_web::{get, middleware::Logger, post, web::Json, App, HttpServer, Responder};
 use env_logger::Env;
 use kafka::producer::Producer;
 use purchase_request::PurchaseRequest;
@@ -22,19 +16,21 @@ const TOPIC: &str = "bike-purchases";
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     println!("Hello, world!");
-    let config: Configuration =
-        confy::load("purchasing", None).expect("Unable to get confy configuration");
     env_logger::init_from_env(Env::default().default_filter_or("info"));
 
-    let config_clone = config.clone();
+    let purchasing_ip = std::env::var("PURCHASING_IP").expect("Must define $PURCHASING_IP");
+    let purchasing_port: u16 = std::env::var("PURCHASING_PORT")
+        .expect("Must define $PURCHASING_PORT")
+        .parse()
+        .expect("Got purchasing IP, but failed to parse to u16");
+
     HttpServer::new(move || {
         App::new()
             .service(hello_world)
             .service(purchase)
             .wrap(Logger::default())
-            .app_data(web::Data::new(config_clone.to_owned()))
     })
-    .bind((config.purchasing_ip, config.purchasing_port))?
+    .bind((purchasing_ip, purchasing_port))?
     .run()
     .await
 }
@@ -53,17 +49,14 @@ async fn hello_world() -> impl Responder {
 }
 
 #[post("/purchase")]
-async fn purchase(
-    record: Json<PurchaseRequest>,
-    config: web::Data<Configuration>,
-) -> impl Responder {
+async fn purchase(record: Json<PurchaseRequest>) -> impl Responder {
     let bike_id = 1;
     let purchase = Purchase {
         cost: record.cost,
         bike_id,
     };
 
-    let mut producer = PurchasesProducer::new(&config);
+    let mut producer = PurchasesProducer::new();
     producer.send_record(purchase);
     "got it bossman"
 }
@@ -75,14 +68,19 @@ struct PurchasesProducer {
 }
 
 impl PurchasesProducer {
-    pub fn new(config: &Configuration) -> Self {
-        let kafka_producer = Producer::from_hosts(vec![config.kafka_host.to_owned()])
+    pub fn new() -> Self {
+        let kafka_broker_address =
+            std::env::var("KAFKA_BROKER_ADDRESS").expect("Must define $KAFKA_BROKER_ADDRESS");
+        let kafka_producer = Producer::from_hosts(vec![kafka_broker_address.to_owned()])
             .with_ack_timeout(std::time::Duration::from_secs(1))
             .with_required_acks(kafka::producer::RequiredAcks::One)
             .create()
             .expect("Unable to make kafka producer");
 
-        let sr_settings = SrSettings::new(config.schema_registry_address.to_owned());
+        let schema_registry_address =
+            std::env::var("SCHEMA_REGISTRY_ADDRESS").expect("Must define $SCHEMA_REGISTRY_ADDRESS");
+
+        let sr_settings = SrSettings::new(schema_registry_address.to_owned());
         let encoder = AvroEncoder::new(sr_settings);
         let subject_name_strategy = SubjectNameStrategy::TopicNameStrategy(TOPIC.to_owned(), false);
 

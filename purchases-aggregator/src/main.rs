@@ -17,8 +17,10 @@ const TOPIC: &str = "bike-purchases-aggregator";
 fn main() {
     println!("Hello, world!");
 
-    let schema_registry_address = std::env::var("SCHEMA_REGISTRY_ADDRESS").unwrap();
-    let kafka_broker_address = std::env::var("KAFKA_BROKER_ADDRESS").unwrap();
+    let schema_registry_address =
+        std::env::var("SCHEMA_REGISTRY_ADDRESS").expect("Must define $SCHEMA_REGISTRY_ADDRESS");
+    let kafka_broker_address =
+        std::env::var("KAFKA_BROKER_ADDRESS").expect("Must define $KAFKA_BROKER_ADDRESS");
 
     let mut kafka_consumer = Consumer::from_hosts(vec![kafka_broker_address.to_owned()])
         .with_topic("bike-purchases".to_owned())
