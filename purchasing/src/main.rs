@@ -3,12 +3,15 @@ mod purchase_request;
 
 use crate::produces::Purchase;
 use actix_web::{get, middleware::Logger, post, web::Json, App, HttpServer, Responder};
+use apache_avro::AvroSchema;
 use env_logger::Env;
 use kafka::producer::Producer;
 use purchase_request::PurchaseRequest;
-use schema_registry_converter::blocking::avro::AvroEncoder;
-use schema_registry_converter::blocking::schema_registry::SrSettings;
-use schema_registry_converter::schema_registry_common::SubjectNameStrategy;
+use schema_registry_converter::async_impl::schema_registry::SrSettings;
+use schema_registry_converter::async_impl::{avro::AvroEncoder, schema_registry::post_schema};
+use schema_registry_converter::schema_registry_common::{
+    SchemaType, SubjectNameStrategy, SuppliedSchema,
+};
 use serde::{Deserialize, Serialize};
 
 const TOPIC: &str = "bike-purchases";
@@ -24,6 +27,24 @@ async fn main() -> std::io::Result<()> {
         .expect("Must define $BIND_PORT")
         .parse()
         .expect("Got binding port, but failed to parse to u16");
+
+    let schema_registry_address =
+        std::env::var("SCHEMA_REGISTRY_ADDRESS").expect("Must define $SCHEMA_REGISTRY_ADDRESS");
+
+    let sr_settings = SrSettings::new(schema_registry_address.to_owned());
+    let supplied_schema = SuppliedSchema {
+        name: None,
+        schema_type: SchemaType::Avro,
+        schema: Purchase::get_schema().canonical_form(),
+        references: vec![],
+    };
+    post_schema(
+        &sr_settings,
+        format!("{}-value", TOPIC.to_owned()),
+        supplied_schema,
+    )
+    .await
+    .unwrap();
 
     HttpServer::new(move || {
         App::new()
@@ -58,17 +79,17 @@ async fn purchase(record: Json<PurchaseRequest>) -> impl Responder {
     };
 
     let mut producer = PurchasesProducer::new();
-    producer.send_record(purchase);
+    producer.send_record(purchase).await;
     "got it bossman"
 }
 
-struct PurchasesProducer {
+struct PurchasesProducer<'a> {
     kafka_producer: Producer,
     subject_name_strategy: SubjectNameStrategy,
-    encoder: AvroEncoder,
+    encoder: AvroEncoder<'a>,
 }
 
-impl PurchasesProducer {
+impl PurchasesProducer<'_> {
     pub fn new() -> Self {
         let kafka_broker_address =
             std::env::var("KAFKA_BROKER_ADDRESS").expect("Must define $KAFKA_BROKER_ADDRESS");
@@ -91,10 +112,11 @@ impl PurchasesProducer {
             encoder,
         }
     }
-    pub fn send_record(&mut self, record: Purchase) {
+    pub async fn send_record(&mut self, record: Purchase) {
         let avro_binary = self
             .encoder
             .encode_struct(record, &self.subject_name_strategy)
+            .await
             .expect("Unable to encode purchase");
         let kafka_record = kafka::producer::Record::from_value(TOPIC, avro_binary);
         self.kafka_producer
