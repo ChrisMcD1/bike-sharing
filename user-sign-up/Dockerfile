@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /myapp/target/release/user-sign-up /usr/local/bin/user-sign-up
 EXPOSE 9001
 ENV RUST_BACKTRACE=1
-ENV SCHEMA_REGISTRY_ADDRESS=localhost:8082
+ENV SCHEMA_REGISTRY_ADDRESS=localhost:8081
 ENV KAFKA_BROKER_ADDRESS=localhost:9092
 ENV BIND_IP=0.0.0.0
 ENV BIND_PORT=9001

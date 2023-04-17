@@ -14,6 +14,6 @@ FROM debian:bullseye-slim
 RUN apt-get update && apt-get install && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /myapp/target/release/purchases-aggregator /usr/local/bin/purchases-aggregator
 ENV RUST_BACKTRACE=1
-ENV SCHEMA_REGISTRY_ADDRESS=localhost:8082
+ENV SCHEMA_REGISTRY_ADDRESS=localhost:8081
 ENV KAFKA_BROKER_ADDRESS=localhost:9092
 CMD ["purchases-aggregator"]

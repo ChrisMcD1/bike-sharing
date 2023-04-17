@@ -9,7 +9,7 @@ services:
     ports:
       - "9000:9000"
     environment:
-      SCHEMA_REGISTRY_ADDRESS: "localhost:8082"
+      SCHEMA_REGISTRY_ADDRESS: "localhost:8081"
       KAFKA_BROKER_ADDRESS: "localhost:9092"
       BIND_IP: "0.0.0.0"
       BIND_PORT: 9000
@@ -22,7 +22,7 @@ services:
     ports:
       - "9001:9001"
     environment:
-      SCHEMA_REGISTRY_ADDRESS: "localhost:8082"
+      SCHEMA_REGISTRY_ADDRESS: "localhost:8081"
       KAFKA_BROKER_ADDRESS: "localhost:9092"
       BIND_IP: "0.0.0.0"
       BIND_PORT: 9001
@@ -33,7 +33,7 @@ services:
       - broker
       - schema-registry
     environment:
-      SCHEMA_REGISTRY_ADDRESS: "localhost:8082"
+      SCHEMA_REGISTRY_ADDRESS: "localhost:8081"
       KAFKA_BROKER_ADDRESS: "localhost:9092"
 
   zookeeper:
