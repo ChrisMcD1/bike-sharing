@@ -7,6 +7,7 @@ RUN cargo build --release
 RUN rm src/*.rs
 
 COPY ./src ./src
+RUN touch ./src/main.rs
 RUN cargo build --release
 
 FROM debian:bullseye-slim
