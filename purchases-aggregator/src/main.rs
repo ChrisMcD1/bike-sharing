@@ -26,11 +26,9 @@ async fn main() {
     let kafka_broker_address =
         std::env::var("KAFKA_BROKER_ADDRESS").expect("Must define $KAFKA_BROKER_ADDRESS");
 
-    let mut kafka_producer = Producer::from_hosts(vec![kafka_broker_address.to_owned()])
-        .with_ack_timeout(std::time::Duration::from_secs(1))
-        .with_required_acks(kafka::producer::RequiredAcks::One)
-        .create()
-        .expect("Unable to make kafka producer");
+    let mut kafka_producer = create_producer(&kafka_broker_address).await;
+
+    let mut kafka_consumer = create_consumer(&kafka_broker_address).await;
 
     let sr_settings = SrSettings::new(schema_registry_address.to_owned());
     let supplied_schema = SuppliedSchema {
@@ -53,7 +51,6 @@ async fn main() {
         sleep(Duration::from_secs(1)).await;
     }
 
-    let mut kafka_consumer = create_consumer(&kafka_broker_address).await;
     let decoder = AvroDecoder::new(sr_settings.clone());
 
     let encoder = AvroEncoder::new(sr_settings);
@@ -120,6 +117,23 @@ async fn send_to_producer(
         .expect("Unable to send to aggregate producer");
 }
 
+async fn create_producer(kafka_broker_address: &str) -> Producer {
+    loop {
+        match Producer::from_hosts(vec![kafka_broker_address.to_owned()])
+            .with_ack_timeout(std::time::Duration::from_secs(1))
+            .with_required_acks(kafka::producer::RequiredAcks::One)
+            .create()
+        {
+            Ok(producer) => return producer,
+            Err(kafka::Error::NoHostReachable) => {
+                println!("Unable to reach host, retrying in 1 second");
+                sleep(Duration::from_secs(1)).await;
+            }
+            Err(e) => panic!("Failed with unexpected error in creating producer {}", e),
+        }
+    }
+}
+
 async fn create_consumer(kafka_broker_address: &str) -> Consumer {
     loop {
         match Consumer::from_hosts(vec![kafka_broker_address.to_owned()])
@@ -135,9 +149,11 @@ async fn create_consumer(kafka_broker_address: &str) -> Consumer {
             Err(kafka::Error::Kafka(kafka::error::KafkaCode::UnknownTopicOrPartition)) => {
                 println!("Failed to create consumer because of bad topic or partition. Retrying in 1 second");
                 sleep(Duration::from_secs(1)).await;
-                continue;
             }
-            Err(e) => panic!("{}", e),
+            Err(e) => {
+                println!("Failed with unexpected error in creating consumer {}", e);
+                sleep(Duration::from_secs(1)).await;
+            }
         }
     }
 }
