@@ -22,8 +22,8 @@ services:
     ports:
       - "9001:9001"
     environment:
+      KAFKA_BROKER_ADDRESS: "broker:29092"
       SCHEMA_REGISTRY_ADDRESS: "http://schema-registry:8081"
-      KAFKA_BROKER_ADDRESS: "broker:9092"
       BIND_IP: "0.0.0.0"
       BIND_PORT: 9001
 
@@ -33,8 +33,8 @@ services:
       - broker
       - schema-registry
     environment:
+      KAFKA_BROKER_ADDRESS: "broker:29092"
       SCHEMA_REGISTRY_ADDRESS: "http://schema-registry:8081"
-      KAFKA_BROKER_ADDRESS: "broker:9092"
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.3.3
