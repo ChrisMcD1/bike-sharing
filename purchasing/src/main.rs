@@ -48,7 +48,10 @@ async fn main() -> std::io::Result<()> {
     )
     .await
     {
-        println!("Failed to connect with error: {}. Retrying in 1 second", e);
+        println!(
+            "Failed to connect to schema registry with error: {}. Retrying in 1 second",
+            e
+        );
         sleep(Duration::from_secs(1)).await;
     }
 

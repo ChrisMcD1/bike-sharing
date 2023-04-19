@@ -7,6 +7,7 @@ use schema_registry_converter::schema_registry_common::{
 };
 use serde::{Deserialize, Serialize};
 use std::{time::Duration, vec};
+use tokio::time::sleep;
 
 #[derive(Default, Debug, Serialize, Deserialize, Clone)]
 struct Configuration {
@@ -25,16 +26,6 @@ async fn main() {
     let kafka_broker_address =
         std::env::var("KAFKA_BROKER_ADDRESS").expect("Must define $KAFKA_BROKER_ADDRESS");
 
-    let mut kafka_consumer = Consumer::from_hosts(vec![kafka_broker_address.to_owned()])
-        .with_topic("bike-purchases".to_owned())
-        .with_fallback_offset(kafka::consumer::FetchOffset::Earliest)
-        .with_fetch_max_wait_time(Duration::from_secs(1))
-        .with_fetch_min_bytes(1000)
-        .with_fetch_max_bytes_per_partition(100_000)
-        .with_retry_max_bytes_limit(1_000_000)
-        .create()
-        .expect("Failed to make kafka consumer!");
-
     let mut kafka_producer = Producer::from_hosts(vec![kafka_broker_address.to_owned()])
         .with_ack_timeout(std::time::Duration::from_secs(1))
         .with_required_acks(kafka::producer::RequiredAcks::One)
@@ -48,13 +39,21 @@ async fn main() {
         schema: Purchase::get_schema().canonical_form(),
         references: vec![],
     };
-    post_schema(
+    while let Err(e) = post_schema(
         &sr_settings,
         format!("{}-value", TOPIC.to_owned()),
-        supplied_schema,
+        supplied_schema.clone(),
     )
     .await
-    .unwrap();
+    {
+        println!(
+            "Failed to connect to schema registry with error: {}. Retrying in 1 second",
+            e
+        );
+        sleep(Duration::from_secs(1)).await;
+    }
+
+    let mut kafka_consumer = create_consumer(&kafka_broker_address).await;
     let decoder = AvroDecoder::new(sr_settings.clone());
 
     let encoder = AvroEncoder::new(sr_settings);
@@ -119,6 +118,28 @@ async fn send_to_producer(
     producer
         .send(&kafka_record)
         .expect("Unable to send to aggregate producer");
+}
+
+async fn create_consumer(kafka_broker_address: &str) -> Consumer {
+    loop {
+        match Consumer::from_hosts(vec![kafka_broker_address.to_owned()])
+            .with_topic("bike-purchases".to_owned())
+            .with_fallback_offset(kafka::consumer::FetchOffset::Earliest)
+            .with_fetch_max_wait_time(Duration::from_secs(1))
+            .with_fetch_min_bytes(1000)
+            .with_fetch_max_bytes_per_partition(100_000)
+            .with_retry_max_bytes_limit(1_000_000)
+            .create()
+        {
+            Ok(consumer) => return consumer,
+            Err(kafka::Error::Kafka(kafka::error::KafkaCode::UnknownTopicOrPartition)) => {
+                println!("Failed to create consumer because of bad topic or partition. Retrying in 1 second");
+                sleep(Duration::from_secs(1)).await;
+                continue;
+            }
+            Err(e) => panic!("{}", e),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, AvroSchema)]
