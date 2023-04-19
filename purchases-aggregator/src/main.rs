@@ -1,8 +1,10 @@
 use apache_avro::{from_value, AvroSchema};
 use kafka::{consumer::Consumer, producer::Producer};
-use schema_registry_converter::blocking::avro::{AvroDecoder, AvroEncoder};
-use schema_registry_converter::blocking::schema_registry::SrSettings;
-use schema_registry_converter::schema_registry_common::SubjectNameStrategy;
+use schema_registry_converter::async_impl::avro::{AvroDecoder, AvroEncoder};
+use schema_registry_converter::async_impl::schema_registry::{post_schema, SrSettings};
+use schema_registry_converter::schema_registry_common::{
+    SchemaType, SubjectNameStrategy, SuppliedSchema,
+};
 use serde::{Deserialize, Serialize};
 use std::{time::Duration, vec};
 
@@ -14,7 +16,8 @@ struct Configuration {
 
 const TOPIC: &str = "bike-purchases-aggregator";
 
-fn main() {
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
     println!("Hello, world!");
 
     let schema_registry_address =
@@ -39,12 +42,24 @@ fn main() {
         .expect("Unable to make kafka producer");
 
     let sr_settings = SrSettings::new(schema_registry_address.to_owned());
+    let supplied_schema = SuppliedSchema {
+        name: None,
+        schema_type: SchemaType::Avro,
+        schema: Purchase::get_schema().canonical_form(),
+        references: vec![],
+    };
+    post_schema(
+        &sr_settings,
+        format!("{}-value", TOPIC.to_owned()),
+        supplied_schema,
+    )
+    .await
+    .unwrap();
     let decoder = AvroDecoder::new(sr_settings.clone());
 
     let encoder = AvroEncoder::new(sr_settings);
     let subject_name_strategy = SubjectNameStrategy::TopicNameStrategy(TOPIC.to_owned(), false);
 
-    let purchase_schema = Purchase::get_schema();
     let purchase_cost_schema = PurchaseCostOnly::get_schema();
 
     let mut bike_count = 0;
@@ -60,6 +75,7 @@ fn main() {
             for message in message_set.messages() {
                 let schema_value = decoder
                     .decode(Some(message.value))
+                    .await
                     .expect("Failed to decode message")
                     .value;
                 let purchase = from_value::<PurchaseCostOnly>(
@@ -79,7 +95,8 @@ fn main() {
                     &encoder,
                     &subject_name_strategy,
                     &aggregate,
-                );
+                )
+                .await;
                 println!("{:?}", aggregate);
             }
             message_set_count += 1;
@@ -88,14 +105,15 @@ fn main() {
     }
 }
 
-fn send_to_producer(
+async fn send_to_producer(
     producer: &mut Producer,
-    encoder: &AvroEncoder,
+    encoder: &AvroEncoder<'_>,
     subject_name_strategy: &SubjectNameStrategy,
     aggregate: &PurchaseAggregate,
 ) {
     let avro_binary = encoder
         .encode_struct(aggregate, subject_name_strategy)
+        .await
         .expect("Unable to encode aggregate struct");
     let kafka_record = kafka::producer::Record::from_value(TOPIC, avro_binary);
     producer
