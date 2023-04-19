@@ -34,7 +34,7 @@ async fn main() {
     let supplied_schema = SuppliedSchema {
         name: None,
         schema_type: SchemaType::Avro,
-        schema: Purchase::get_schema().canonical_form(),
+        schema: PurchaseAggregate::get_schema().canonical_form(),
         references: vec![],
     };
     while let Err(e) = post_schema(
