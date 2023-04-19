@@ -1249,6 +1249,7 @@ dependencies = [
  "kafka",
  "schema_registry_converter",
  "serde",
+ "tokio",
 ]
 
 [[package]]

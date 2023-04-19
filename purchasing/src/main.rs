@@ -1,6 +1,8 @@
 mod produces;
 mod purchase_request;
 
+use std::time::Duration;
+
 use crate::produces::Purchase;
 use actix_web::{get, middleware::Logger, post, web::Json, App, HttpServer, Responder};
 use apache_avro::AvroSchema;
@@ -13,6 +15,7 @@ use schema_registry_converter::schema_registry_common::{
     SchemaType, SubjectNameStrategy, SuppliedSchema,
 };
 use serde::{Deserialize, Serialize};
+use tokio::time::sleep;
 
 const TOPIC: &str = "bike-purchases";
 
@@ -38,13 +41,16 @@ async fn main() -> std::io::Result<()> {
         schema: Purchase::get_schema().canonical_form(),
         references: vec![],
     };
-    post_schema(
+    while let Err(e) = post_schema(
         &sr_settings,
         format!("{}-value", TOPIC.to_owned()),
-        supplied_schema,
+        supplied_schema.clone(),
     )
     .await
-    .unwrap();
+    {
+        println!("Failed to connect with error: {}. Retrying in 1 second", e);
+        sleep(Duration::from_secs(1)).await;
+    }
 
     HttpServer::new(move || {
         App::new()
